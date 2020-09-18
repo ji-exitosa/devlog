@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ssafy.devlog.mapper.PostMapper">     
+            
+	
+	<!-- 피드에서 한 페이지의 포스트 반환. -->
+	<select id="selectPostByFeed" resultType="Post">
+		select post.*,post_basic.content
+		from post inner join post_basic on post.seq=post_basic.seq
+		<if test="seq_user == 0">
+		where disclosure=1 
+		</if>
+		<if test="seq_user != 0">
+			where  (disclosure=1
+				or (disclosure=2 and seq_blog in (select seq_user from user_neighbor where seq_neighbor= #{seq_user} ))
+				or (seq_blog = #{seq_user}) )
+			<if test="disclosure == 2">
+			and seq_blog in (select seq_neighbor from user_neighbor where seq_user = #{seq_user} )
+			</if>
+		</if>
+		<!-- 태그 선택시 서치해서 반환 -->
+		<if test="tag != null">
+			and post.seq in ( 
+			select seq_post from post_tag where tag in 
+       		<foreach collection="tag" item="item"  open="(" close=")" separator=",">
+            #{item}
+        	</foreach>
+			)
+		</if>
+		and <![CDATA[regtime <= now()]]>
+		and status = 'published'
+		ORDER BY regtime desc
+		LIMIT #{limit} OFFSET #{offset} 
+	</select>
+	
+	
+	<!-- 블로그 메인에서 모든 포스트의 개수 반환. -->
+	<select id="selectPostCntByBlog" resultType="java.lang.Integer">
+		select count(*)
+		from post inner join post_basic on post.seq = post_basic.seq
+		where seq_blog = #{seq_blog} and status = 'published'
+		<if test="seq_user != 0">
+		    and (disclosure=1 
+			or (disclosure=2 and seq_blog in (select seq_user from user_neighbor where seq_neighbor= #{seq_user} ))
+			or (seq_blog = #{seq_user}) )
+		</if>
+		<if test="seq_user == 0">
+		 	and disclosure=1 
+		</if>
+		and (<![CDATA[regtime <= now()]]> or seq_blog = #{seq_user})
+	</select>
+	
+	
+	<!-- 블로그 메인에서 한 페이지의 포스트 반환.-->
+	<select id="selectPostByBlog" resultType="Post">
+		select post.*, post_basic.content
+		from post inner join post_basic on post.seq = post_basic.seq
+		where seq_blog = #{seq_blog} and status = 'published'
+		<if test="seq_user != 0">
+		    and (disclosure=1 
+			or (disclosure=2 and seq_blog in (select seq_user from user_neighbor where seq_neighbor= #{seq_user} ))
+			or (seq_blog = #{seq_user}))
+		</if>
+		<if test="seq_user == 0">
+		 	and disclosure=1 
+		</if>
+		<!-- 태그 선택시 서치해서 반환 -->
+		<if test="tag != null">
+			and post.seq in ( 
+			select seq_post from post_tag where tag in 
+       		<foreach collection="tag" item="item"  open="(" close=")" separator=",">
+            #{item}
+        	</foreach>
+			)
+		</if>
+		and (<![CDATA[regtime <= now()]]> 
+		or seq_blog = #{seq_user})
+		ORDER BY regtime desc
+		LIMIT #{limit} OFFSET #{offset} 
+	</select>
+	
+	
+	
+	<!-- 포스트 상세조회  -->
+	<select id="selectPost" resultType="Post">
+		select post.*, post_basic.content from post inner join post_basic on post.seq = post_basic.seq
+		where post.seq = #{seq}
+	</select>
+	
+	<select id="selectPostTitle" resultType="String">
+		select title
+		from post
+		where seq = #{seq_post}
+	</select>
+	
+	<!-- 임시보관 포스트 조회  -->
+	<select id="selectDraftPost" resultType="Post">
+	select post.*, post_basic.content from post inner join post_basic on post.seq = post_basic.seq
+	where post.status = 'draft' and seq_blog = #{seq_blog}  
+	order by regtime desc
+	</select>
+	
+	<!-- 포스트 기본 정보 등록 -->
+	<insert id="insertPost" useGeneratedKeys="true" keyProperty="seq">
+		insert into post(
+			seq_blog,title,disclosure,img_url,like_count,status <if test="regtime != null">, regtime</if>
+		) values (
+			#{seq_blog}, #{title}, #{disclosure} ,#{img_url},0,#{status} <if test="regtime != null">, #{regtime}</if>
+		)
+	</insert>
+	
+	<!-- 포스트 내용 등록 -->
+	<insert id="insertPostBasic">
+		insert into post_basic(
+			seq,content
+		) values (
+			#{seq}, #{content}
+		)
+	</insert>
+	
+	<!-- 포스트 기본 정보 수정 -->
+	<update id="updatePost">
+		update post 
+		   set title = #{title}, 
+		   	   disclosure = #{disclosure},
+		   	   img_url = #{img_url},
+		   	   status = #{status}
+		   	   <if test="regtime != null">,regtime = #{regtime}</if>
+		 where seq = #{seq}
+	</update>
+
+	<!-- 포스트 내용 수정 -->
+	<update id="updatePostBasic">
+		update post_basic 
+		   set content = #{content}
+		 where seq = #{seq}
+	</update>
+	
+	<!-- 포스트 삭제 -->
+	<delete id="deletePost">
+		delete from post where seq = #{seq}
+	</delete>
+	
+</mapper>
+
